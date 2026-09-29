@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Internship Tracker</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- SIDEBAR -->
+
+    <aside class="sidebar">
+
+        <div class="logo">
+            <div class="logo-icon">IT</div>
+
+            <div>
+                <h2>InternTrack</h2>
+                <p>Career Dashboard</p>
+            </div>
+        </div>
+
+        <nav>
+            <button class="nav-item active">
+                Dashboard
+            </button>
+
+            <button class="nav-item">
+                Applications
+            </button>
+
+            <button class="nav-item">
+                Analytics
+            </button>
+        </nav>
+
+        <div class="sidebar-footer">
+            <p>Internship Tracker</p>
+            <span>Built by Aditya</span>
+        </div>
+
+    </aside>
+
+
+    <!-- MAIN CONTENT -->
+
+    <main class="main">
+
+        <!-- HEADER -->
+
+        <header class="topbar">
+
+            <div>
+                <p class="eyebrow">CAREER COMMAND CENTER</p>
+                <h1>Internship Tracker</h1>
+                <p class="subtitle">
+                    Track applications, interviews, and offers in one place.
+                </p>
+            </div>
+
+            <button class="primary-button" id="addButton">
+                + Add Internship
+            </button>
+
+        </header>
+
+
+        <!-- STATS -->
+
+        <section class="stats">
+
+            <div class="stat-card">
+                <p>Total Applications</p>
+                <h2 id="applicationCount">0</h2>
+                <span>All tracked roles</span>
+            </div>
+
+            <div class="stat-card">
+                <p>Interviews</p>
+                <h2 id="interviewCount">0</h2>
+                <span>Active opportunities</span>
+            </div>
+
+            <div class="stat-card">
+                <p>Offers</p>
+                <h2 id="offerCount">0</h2>
+                <span>Let's go 🚀</span>
+            </div>
+
+            <div class="stat-card">
+                <p>Response Rate</p>
+                <h2 id="responseRate">0%</h2>
+                <span>Interview or offer</span>
+            </div>
+
+        </section>
+
+
+        <!-- PIPELINE -->
+
+        <section class="panel">
+
+            <div class="panel-header">
+                <div>
+                    <h2>Application Pipeline</h2>
+                    <p>Your recruiting progress at a glance.</p>
+                </div>
+            </div>
+
+            <div class="pipeline">
+
+                <div>
+                    <span>Applied</span>
+                    <strong id="appliedPipeline">0</strong>
+                </div>
+
+                <div class="arrow">→</div>
+
+                <div>
+                    <span>Interview</span>
+                    <strong id="interviewPipeline">0</strong>
+                </div>
+
+                <div class="arrow">→</div>
+
+                <div>
+                    <span>Offer</span>
+                    <strong id="offerPipeline">0</strong>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- APPLICATIONS -->
+
+        <section class="panel applications-panel">
+
+            <div class="panel-header">
+
+                <div>
+                    <h2>Applications</h2>
+                    <p>Manage and update your internship search.</p>
+                </div>
+
+                <div class="controls">
+
+                    <input
+                        id="searchInput"
+                        type="text"
+                        placeholder="Search company or position..."
+                    >
+
+                    <select id="statusFilter">
+                        <option value="All">All Statuses</option>
+                        <option value="Applied">Applied</option>
+                        <option value="Interview">Interview</option>
+                        <option value="Offer">Offer</option>
+                        <option value="Rejected">Rejected</option>
+                        <option value="Withdrawn">Withdrawn</option>
+                    </select>
+
+                    <select id="sortSelect">
+                        <option value="newest">Newest</option>
+                        <option value="oldest">Oldest</option>
+                        <option value="company">Company A-Z</option>
+                    </select>
+
+                </div>
+
+            </div>
+
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Company</th>
+                            <th>Position</th>
+                            <th>Location</th>
+                            <th>Status</th>
+                            <th>Date Applied</th>
+                            <th>Age</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="applicationTable"></tbody>
+
+                </table>
+
+                <div id="emptyState" class="empty-state">
+
+                    <div class="empty-icon">◎</div>
+
+                    <h3>No applications found</h3>
+
+                    <p>
+                        Add an internship or change your search filters.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<!-- MODAL -->
+
+<div class="modal" id="internshipModal">
+
+    <div class="modal-content">
+
+        <div class="modal-header">
+
+            <div>
+                <p class="eyebrow">APPLICATION</p>
+                <h2 id="modalTitle">Add Internship</h2>
+            </div>
+
+            <button id="closeButton" class="close-button">
+                ×
+            </button>
+
+        </div>
+
+
+        <form id="internshipForm">
+
+            <div class="form-grid">
+
+                <div class="form-group">
+                    <label>Company *</label>
+
+                    <input
+                        type="text"
+                        id="company"
+                        placeholder="Boeing"
+                        required
+                    >
+                </div>
+
+
+                <div class="form-group">
+                    <label>Position *</label>
+
+                    <input
+                        type="text"
+                        id="position"
+                        placeholder="Mechanical Engineering Intern"
+                        required
+                    >
+                </div>
+
+
+                <div class="form-group">
+                    <label>Location</label>
+
+                    <input
+                        type="text"
+                        id="location"
+                        placeholder="Seattle, WA"
+                    >
+                </div>
+
+
+                <div class="form-group">
+                    <label>Status</label>
+
+                    <select id="status">
+
+                        <option value="Applied">
+                            Applied
+                        </option>
+
+                        <option value="Interview">
+                            Interview
+                        </option>
+
+                        <option value="Offer">
+                            Offer
+                        </option>
+
+                        <option value="Rejected">
+                            Rejected
+                        </option>
+
+                        <option value="Withdrawn">
+                            Withdrawn
+                        </option>
+
+                    </select>
+                </div>
+
+
+                <div class="form-group">
+                    <label>Date Applied *</label>
+
+                    <input
+                        type="date"
+                        id="dateApplied"
+                        required
+                    >
+                </div>
+
+
+                <div class="form-group">
+                    <label>Application Deadline</label>
+
+                    <input
+                        type="date"
+                        id="deadline"
+                    >
+                </div>
+
+            </div>
+
+
+            <div class="form-group">
+                <label>Job Posting Link</label>
+
+                <input
+                    type="url"
+                    id="jobLink"
+                    placeholder="https://..."
+                >
+            </div>
+
+
+            <div class="form-group">
+                <label>Notes</label>
+
+                <textarea
+                    id="notes"
+                    rows="4"
+                    placeholder="Recruiter name, interview notes, follow-up reminders..."
+                ></textarea>
+            </div>
+
+
+            <div class="form-actions">
+
+                <button
+                    type="button"
+                    class="secondary-button"
+                    id="cancelButton"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                    id="saveButton"
+                >
+                    Save Application
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<script src="script.js"></script>
+
+</body>
+</html>

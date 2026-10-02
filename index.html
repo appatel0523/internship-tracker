@@ -11,7 +11,28 @@
 
 <body>
 
-<div class="app">
+<section id="authScreen" class="auth-screen" hidden>
+    <div class="auth-card">
+        <div class="logo-icon">IT</div>
+        <p class="eyebrow">YOUR NEXT CHAPTER STARTS HERE</p>
+        <h1>Welcome to InternTrack</h1>
+        <p class="subtitle">Your applications, interviews, and offers. Together, wherever you go.</p>
+        <div class="auth-tabs" aria-label="Account options">
+            <button id="loginTab" type="button" class="active" aria-pressed="true">Log in</button>
+            <button id="signupTab" type="button" aria-pressed="false">Create account</button>
+        </div>
+        <form id="authForm">
+            <div class="form-group"><label for="authEmail">Email address</label><input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com"></div>
+            <div class="form-group"><label for="authPassword">Password</label><input id="authPassword" type="password" autocomplete="current-password" required></div>
+            <p id="passwordHint" class="auth-note" hidden>Use at least 8 characters.</p>
+            <button id="authSubmit" class="primary-button" type="submit">Log in</button>
+        </form>
+        <p id="authMessage" role="status" aria-live="polite"></p>
+        <p class="auth-note">Your existing applications on this browser will be imported into the first account you sign in to.</p>
+    </div>
+</section>
+<div id="loadingScreen" class="loading-screen" role="status"><div class="spinner"></div><p id="loadingText">Connecting to InternTrack…</p></div>
+<div class="app" id="appShell" hidden>
 
     <!-- SIDEBAR -->
 
@@ -71,6 +92,9 @@
     <!-- MAIN -->
 
     <main class="main">
+        <div class="account-bar"><div><span class="cloud-label">INTERNTRACK V3 · CLOUD</span><span id="signedInEmail"></span></div><div class="account-actions"><button id="refreshButton" class="secondary-button">Refresh</button><button id="logoutButton" class="secondary-button">Log out</button></div></div>
+        <div id="cloudNotice" class="cloud-notice" role="status" hidden></div>
+        <nav class="mobile-nav" aria-label="Views"><button data-go-to="dashboard">Dashboard</button><button data-go-to="applications">Applications</button><button data-go-to="interviews">Interviews</button><button data-go-to="offers">Offers</button><button data-go-to="analytics">Analytics</button></nav>
 
         <!-- ========================= -->
         <!-- DASHBOARD -->
@@ -706,6 +730,7 @@
 <div id="toast" class="toast"></div>
 
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="script.js"></script>
 
 </body>

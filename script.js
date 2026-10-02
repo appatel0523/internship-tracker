@@ -1,5 +1,5 @@
 // ======================================================
-// INTERNTRACK V2
+// INTERNTRACK V3
 // Internship Application Dashboard
 // ======================================================
 
@@ -64,50 +64,8 @@ const addButtons =
 // DATA
 // ======================================================
 
-// Same localStorage key as your original version.
-// This means your old applications should still load.
-
 let internships = [];
-
-try {
-
-    const savedInternships =
-        JSON.parse(
-            localStorage.getItem("internships")
-        );
-
-    if (Array.isArray(savedInternships)) {
-        internships = savedInternships;
-    }
-
-} catch (error) {
-
-    console.error(
-        "Could not load internship data:",
-        error
-    );
-
-    internships = [];
-
-}
-
-
 let editingIndex = null;
-
-
-// ======================================================
-// DATA HELPERS
-// ======================================================
-
-function saveInternships() {
-
-    localStorage.setItem(
-        "internships",
-        JSON.stringify(internships)
-    );
-
-}
-
 
 function normalizeInternship(internship) {
 
@@ -151,13 +109,7 @@ function normalizeInternship(internship) {
 }
 
 
-// Make old saved applications compatible
-// with the new fields.
 
-internships =
-    internships.map(normalizeInternship);
-
-saveInternships();
 
 
 // ======================================================
@@ -351,41 +303,33 @@ function editInternship(index) {
 // DELETE APPLICATION
 // ======================================================
 
-function deleteInternship(index) {
-
-    const internship =
-        internships[index];
-
-    if (!internship) {
+async function deleteInternship(index) {
+    const item = internships[index];
+    if (!item || busy || !currentUser) return;
+    try {
+        const migration = JSON.parse(localStorage.getItem(MIGRATION_KEY) || "null");
+        if (migration?.userId === currentUser.id && !migration.complete) {
+            showNotice("Finish importing before deleting applications. Press Refresh to retry the import safely.");
+            return;
+        }
+    } catch {
+        showNotice("Could not check the import checkpoint. Restore browser storage access before deleting.");
         return;
     }
-
-
-    const confirmed =
-        confirm(
-            `Delete your ${internship.company} application?`
-        );
-
-
-    if (!confirmed) {
-        return;
-    }
-
-
-    internships.splice(
-        index,
-        1
-    );
-
-
-    saveInternships();
-
-    renderAll();
-
-    showToast(
-        "Application deleted"
-    );
-
+    if (!confirm(`Delete your ${item.company} application?`)) return;
+    const userId = currentUser.id;
+    const version = sessionVersion;
+    setBusy(true, "Deleting application…");
+    try {
+        const { data, error } = await db.from("applications").delete().eq("id", item.id).eq("user_id", userId).select("id");
+        if (error) throw error;
+        if (!data.length) throw new Error("This application could not be deleted. Refresh and try again.");
+        if (version !== sessionVersion) return;
+        internships = internships.filter(row => row.id !== item.id);
+        renderAll();
+        showToast("Application deleted");
+    } catch (error) { if (version === sessionVersion) showNotice(error.message); }
+    finally { if (version === sessionVersion) setBusy(false); }
 }
 
 
@@ -395,9 +339,10 @@ function deleteInternship(index) {
 
 internshipForm.addEventListener(
     "submit",
-    function (event) {
+    async function (event) {
 
         event.preventDefault();
+        if (busy || !currentUser) return;
 
 
         const company =
@@ -483,35 +428,27 @@ internshipForm.addEventListener(
         };
 
 
-        if (editingIndex === null) {
-
-            internships.push(
-                internship
-            );
-
-            showToast(
-                "Application added"
-            );
-
-        } else {
-
-            internships[editingIndex] =
-                internship;
-
-            showToast(
-                "Application updated"
-            );
-
-        }
-
-
-        saveInternships();
-
-        closeModal(internshipModal);
-
-        editingIndex = null;
-
-        renderAll();
+        const existing = editingIndex === null ? null : internships[editingIndex];
+        const userId = currentUser.id;
+        const version = sessionVersion;
+        setBusy(true, "Saving application…");
+        try {
+            const row = toDatabase(internship, userId);
+            const request = existing
+                ? db.from("applications").update(row).eq("id", existing.id).eq("user_id", userId)
+                : db.from("applications").insert(row);
+            const { data, error } = await request.select().single();
+            if (error) throw error;
+            if (version !== sessionVersion) return;
+            const saved = fromDatabase(data);
+            if (existing) internships = internships.map(item => item.id === existing.id ? saved : item);
+            else internships.push(saved);
+            closeModal(internshipModal);
+            editingIndex = null;
+            renderAll();
+            showToast(existing ? "Application updated" : "Application added");
+        } catch (error) { if (version === sessionVersion) showNotice("Save failed. Your form is still here. " + error.message); }
+        finally { if (version === sessionVersion) setBusy(false); }
 
     }
 );
@@ -1952,7 +1889,7 @@ document.addEventListener(
     "keydown",
     function (event) {
 
-        if (event.key === "Escape") {
+        if (event.key === "Escape" && !busy) {
 
             closeModal(
                 internshipModal
@@ -2132,7 +2069,7 @@ function statusBadge(status) {
     return `
 
         <span
-            class="status ${safeStatus.toLowerCase()}"
+            class="status ${escapeHTML(safeStatus.toLowerCase())}"
         >
             ${escapeHTML(
                 safeStatus
@@ -2200,7 +2137,7 @@ function escapeHTML(value) {
         value || "";
 
 
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 }
 
@@ -2269,3 +2206,227 @@ function renderAll() {
 // ======================================================
 
 renderAll();
+// Supabase JS v2: only the public browser key belongs in this file.
+const PROJECT_URL = "https://yyvjihkkivtmlayxygaa.supabase.co";
+const PUBLISHABLE_KEY = "sb_publishable_8S6GjlXcxRem0Ic1VOikKA_vZf8iDKa";
+const $ = selector => document.querySelector(selector);
+const db = window.supabase?.createClient(PROJECT_URL, PUBLISHABLE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+});
+let currentUser = null;
+let sessionVersion = 0;
+let busy = false;
+let authMode = "login";
+let authPending = false;
+let sessionKnown = false;
+
+function toDatabase(item, userId) {
+    const n = normalizeInternship(item);
+    return {
+        user_id: userId, company: n.company, position: n.position,
+        location: n.location, status: n.status, date_applied: n.dateApplied || null,
+        deadline: n.deadline || null, follow_up_date: n.followUpDate || null,
+        salary: n.salary, recruiter: n.contact, job_link: n.jobLink, notes: n.notes
+    };
+}
+function fromDatabase(row) {
+    return { ...normalizeInternship({ ...row, dateApplied: row.date_applied,
+        followUpDate: row.follow_up_date, contact: row.recruiter, jobLink: row.job_link }), id: row.id };
+}
+function showNotice(message = "") {
+    $("#cloudNotice").textContent = message;
+    $("#cloudNotice").hidden = !message;
+}
+function setBusy(value, message = "Loading your applications…") {
+    busy = value;
+    $("#loadingText").textContent = message;
+    $("#loadingScreen").hidden = !value;
+    $("#appShell").inert = value;
+    internshipModal.inert = value;
+    detailsModal.inert = value;
+}
+function setAuthMode(mode) {
+    authMode = mode;
+    $("#authSubmit").textContent = mode === "login" ? "Log in" : "Create account";
+    $("#authPassword").autocomplete = mode === "login" ? "current-password" : "new-password";
+    $("#authPassword").minLength = mode === "login" ? 1 : 8;
+    $("#passwordHint").hidden = mode === "login";
+    for (const [id, active] of [["#loginTab", mode === "login"], ["#signupTab", mode === "signup"]]) {
+        $(id).classList.toggle("active", active);
+        $(id).setAttribute("aria-pressed", String(active));
+    }
+    $("#authMessage").textContent = "";
+}
+$("#loginTab").onclick = () => setAuthMode("login");
+$("#signupTab").onclick = () => setAuthMode("signup");
+$("#authForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    if (authPending || !db) return;
+    authPending = true;
+    $("#authSubmit").disabled = true;
+    $("#loginTab").disabled = $("#signupTab").disabled = true;
+    $("#authMessage").textContent = "Connecting…";
+    try {
+        const credentials = { email: $("#authEmail").value.trim(), password: $("#authPassword").value };
+        // Keep the GitHub Pages repository path; no server-only callback route.
+        const redirect = new URL("./", window.location.href).href;
+        const { data, error } = authMode === "signup"
+            ? await db.auth.signUp({ ...credentials, options: { emailRedirectTo: redirect } })
+            : await db.auth.signInWithPassword(credentials);
+        if (error) throw error;
+        $("#authPassword").value = "";
+        $("#authMessage").textContent = data.session ? "Signed in." : "Check your email for a confirmation link, then log in here.";
+    } catch (error) { $("#authMessage").textContent = error.message; }
+    finally {
+        authPending = false;
+        $("#authSubmit").disabled = false;
+        $("#loginTab").disabled = $("#signupTab").disabled = false;
+    }
+});
+
+// A durable journal is bound to the first importing account. The original key is
+// never modified or removed. Completed IDs act as tombstones after cloud deletes.
+const MIGRATION_KEY = "interntrack-v3-migration";
+async function stableImportId(userId, item, index) {
+    const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(
+        JSON.stringify(["interntrack-v3", userId, index, normalizeInternship(item)])));
+    const hex = Array.from(new Uint8Array(bytes)).map(b => b.toString(16).padStart(2,"0")).join("");
+    // 52-bit negative integers are exact in JavaScript and fit Postgres bigint.
+    // Negative IDs keep imported rows separate from the positive identity sequence.
+    return -(parseInt(hex.slice(0, 13), 16) + 1);
+}
+async function migrateLocal(userId, version) {
+    if (!localStorage.getItem("internships")) return;
+    const run = async () => {
+        if (version !== sessionVersion) return;
+        const raw = localStorage.getItem("internships");
+        if (!raw) return;
+        let journal = JSON.parse(localStorage.getItem(MIGRATION_KEY) || "null");
+        if (journal && journal.userId !== userId) {
+            return "Browser data belongs to a different importing account and has not been copied into this account.";
+        }
+        if (journal?.complete) return;
+        if (!journal) {
+            const items = JSON.parse(raw);
+            if (!Array.isArray(items)) throw new Error("The old browser data is not a valid application list.");
+            if (!items.length) return;
+            if (items.some(item => !item || typeof item !== "object" || Array.isArray(item) ||
+                Object.values(item).some(value => value != null && typeof value === "object") || !item.company || !item.position)) {
+                throw new Error("Some old applications are invalid. The original data has been kept unchanged.");
+            }
+            const rows = await Promise.all(items.map(async (item, index) => ({
+                ...toDatabase(item, userId), id: await stableImportId(userId, item, index)
+            })));
+            journal = { userId, rows, complete: false };
+            // Must succeed BEFORE uploading. Storage failures cannot silently lose the checkpoint.
+            localStorage.setItem(MIGRATION_KEY, JSON.stringify(journal));
+        }
+        // Repair the failed UUID checkpoint without touching the original local data.
+        // PostgreSQL rejected that entire batch before inserting any rows.
+        if (journal.rows.some(row => typeof row.id === "string" && row.id.includes("-"))) {
+            journal.rows = await Promise.all(journal.rows.map(async (row, index) => ({
+                ...row, id: await stableImportId(userId, fromDatabase(row), index)
+            })));
+            localStorage.setItem(MIGRATION_KEY, JSON.stringify(journal));
+        }
+        if (new Set(journal.rows.map(row => row.id)).size !== journal.rows.length) {
+            throw new Error("Import IDs conflict. Your local data has been retained.");
+        }
+        if (version !== sessionVersion) return;
+        // A single atomic batch plus stable primary keys makes interrupted retries idempotent.
+        // DO NOTHING on conflicts preserves any already edited cloud records.
+        const { error } = await db.from("applications").upsert(journal.rows, { onConflict: "id", ignoreDuplicates: true });
+        if (error) throw error;
+        if (version !== sessionVersion) return;
+        journal.complete = true;
+        localStorage.setItem(MIGRATION_KEY, JSON.stringify(journal));
+        return "Your browser applications have been imported. The original local backup has been retained.";
+    };
+    // Serialize imports across tabs on supported browsers; stable IDs also guard retries.
+    if (!navigator.locks) throw new Error("Safe import requires a browser with Web Locks support. Your local data is unchanged.");
+    return navigator.locks.request("interntrack-v3-import", run);
+}
+async function fetchApplications(userId) {
+    const rows = [];
+    for (let start = 0; ; start += 500) {
+        const { data, error } = await db.from("applications").select("*").eq("user_id", userId).order("id").range(start, start + 499);
+        if (error) throw error;
+        rows.push(...data);
+        if (data.length < 500) break;
+    }
+    return rows.map(fromDatabase);
+}
+async function refreshCloud() {
+    if (!currentUser || busy || internshipModal.classList.contains("open")) return;
+    const version = sessionVersion;
+    const userId = currentUser.id;
+    setBusy(true);
+    showNotice();
+    let migrationMessage = "";
+    try {
+        try { migrationMessage = await migrateLocal(userId, version) || ""; }
+        catch (error) { migrationMessage = "Import not completed; local data is safe. Press Refresh to retry. " + error.message; }
+        if (version !== sessionVersion) return;
+        const rows = await fetchApplications(userId);
+        if (version !== sessionVersion) return;
+        closeModal(detailsModal);
+        internships = rows;
+        renderAll();
+        showNotice(migrationMessage);
+    } catch (error) {
+        if (version === sessionVersion) showNotice([migrationMessage, "Could not load cloud applications. Press Refresh to retry. " + error.message].filter(Boolean).join(" "));
+    } finally { if (version === sessionVersion) setBusy(false); }
+}
+async function applySession(session) {
+    const user = session?.user || null;
+    if (sessionKnown && currentUser?.id === user?.id) return;
+    sessionKnown = true;
+    sessionVersion++;
+    currentUser = user;
+    internships = [];
+    editingIndex = null;
+    internshipForm.reset();
+    searchInput.value = "";
+    statusFilter.value = "All";
+    closeModal(internshipModal);
+    closeModal(detailsModal);
+    renderAll();
+    showNotice();
+    setBusy(false);
+    $("#authScreen").hidden = !!user;
+    $("#appShell").hidden = !user;
+    $("#signedInEmail").textContent = user?.email || "";
+    if (user) await refreshCloud();
+}
+$("#refreshButton").onclick = refreshCloud;
+$("#logoutButton").onclick = async () => {
+    if (!db || busy) return;
+    setBusy(true, "Signing out…");
+    try {
+        const { error } = await db.auth.signOut({ scope: "local" });
+        if (error) throw error;
+        await applySession(null);
+        $("#authMessage").textContent = "You have been signed out.";
+    } catch (error) { showNotice("Could not sign out. " + error.message); }
+    finally { setBusy(false); }
+};
+window.addEventListener("focus", () => { if (currentUser && !busy) refreshCloud(); });
+window.addEventListener("online", refreshCloud);
+if (!db) {
+    setBusy(false);
+    $("#authScreen").hidden = false;
+    $("#authSubmit").disabled = true;
+    $("#authMessage").textContent = "Could not load the sign-in service. Check your connection and reload this page.";
+} else {
+    // Do not await other Supabase calls inside its synchronous auth callback.
+    db.auth.onAuthStateChange((_event, session) => { setTimeout(() => applySession(session), 0); });
+    db.auth.getSession().then(({ data, error }) => {
+        if (error) throw error;
+        if (!sessionKnown) return applySession(data.session);
+    }).catch(error => {
+        if (!sessionKnown) {
+            applySession(null);
+            $("#authMessage").textContent = "Could not restore your session. " + error.message;
+        }
+    });
+}
